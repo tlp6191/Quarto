@@ -25,7 +25,7 @@ class Game{
 	public byte[][] board;
 	//public byte chosen; chosen was a variable for the twist
 	
-	Game(byte piece, byte placement, Game previous){
+	Game(byte piece, int i, int j, Game previous){
 		//Generates a new game state based on the placement.
 	}
 	Game(){
@@ -46,7 +46,7 @@ class Game{
 			for(int j=0; j<4; j++){
 				for(int k=0; k<4; k++){
 					if(j!=0&&k!=0&&board[j][k]==0){//Dont overwrite the top left.
-						
+						int winTemp=new Game(nextPiece,j,k,this).winner();
 						//winner=best of(winner, new Game(piece,placement,this).winner())
 					}
 				}
