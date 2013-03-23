@@ -42,11 +42,17 @@ class Game
 			}
 			System.out.println("");
 		}
+		System.out.flush();
 	}
 	//public byte chosen; chosen was a variable for the twist
 	Game(byte piece, int i, int j, Game previous){
 		//Generates a new game state based on the placement.
-		board=(byte[][])previous.board.clone();
+		board=new byte[4][4];
+		for(int I=0; I<4; I++){
+			for(int J=0; J<4; J++){
+				board[I][J]=previous.board[I][J];
+			}
+		}
 		board[i][j]=piece;
 		player=!previous.player;
 		pieces=new LinkedHashSet<Byte>();
