@@ -35,14 +35,27 @@ class Game
 	public static Set<Long> TwelvePiece=new HashSet<Long>();*/
 	public Set<Byte> pieces;
 	public byte[][] board;
+	public Long toLong(){
+		long r=(long)0;
+		for(int i=0; i<4; i++){
+			for(int j=0; j<4; j++){
+				r+=board[i][j];
+				r=r<<4;
+			}
+		}
+		r=r>>4;
+		return r;
+	}
 	void print(){
+		System.out.println(toLong());
+		/*
 		for(int i=0; i<4; i++){
 			for (int j=0; j<4; j++){
 				System.out.print(board[i][j]+"|");
 			}
 			System.out.println("");
 		}
-		System.out.flush();
+		System.out.flush();*/
 	}
 	//public byte chosen; chosen was a variable for the twist
 	Game(byte piece, int i, int j, Game previous){
@@ -111,13 +124,14 @@ class Game
 	 */
 	boolean done()
 	{
-		return false;
 		//If out of pieces
-
+		if(pieces.size()==0) return true;	
 		//Return true
 		//If there is a winner
 		//Return true
+		if(result()>0) return true;
 		//Return false
+		return false;
 
 	}
 
@@ -128,7 +142,28 @@ class Game
 	 */
 	byte result()
 	{
-		return -1;
+		byte mask1=0x01;
+		byte mask2=0x02;
+		byte mask3=0x04;
+		byte mask4=0x08;
+		//For all rows
+		rows:for(int i=0; i<4; i++){
+			//Are all the pieces in this row placed
+			for(int j=0; j<4; j++){
+				if(board[i][j]==0&&j!=0&&i!=0){
+					System.out.println ("Skipping row "+i);
+					continue rows;
+				}
+			}
+			//For all attributes
+			//Are the cols all 1?
+			for(int k=0; k<4; k++){
+				
+			}
+		}
+		//For all cols
+			//Do rows agree?
+		return 0;
 		//0 means tie.
 		//-1 means inconsistent gamestate (Could be useful later)
 		//1 means player 1 wins.
