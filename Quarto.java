@@ -37,14 +37,7 @@ class Game
 	public byte[][] board;
 
 	//public byte chosen; chosen was a variable for the twist
-<<<<<<< HEAD
-	
 	Game(byte piece, int i, int j, Game previous){
-=======
-
-	Game(byte piece, byte placement, Game previous)
-	{
->>>>>>> 183e97078f22dc3c58b0d1a8b30630c121038c0e
 		//Generates a new game state based on the placement.
 	}
 
