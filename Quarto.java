@@ -43,7 +43,14 @@ class Game{
 			nextPiece=i.next();
 			//For every piece
 			//For every placement
-			//winner=best of(winner, new Game(piece,placement,this).winner())
+			for(int j=0; j<4; j++){
+				for(int k=0; k<4; k++){
+					if(j!=0&&k!=0&&board[j][k]==0){//Dont overwrite the top left.
+						
+						//winner=best of(winner, new Game(piece,placement,this).winner())
+					}
+				}
+			}
 		}
 		return 0;
 	}
