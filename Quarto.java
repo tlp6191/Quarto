@@ -8,7 +8,7 @@ public class Quarto
 {
 	public static void main(String args[])
 	{
-
+		System.out.println(new Game().winner());
 	}
 }
 
@@ -35,10 +35,23 @@ class Game
 	public static Set<Long> TwelvePiece=new HashSet<Long>();*/
 	public Set<Byte> pieces;
 	public byte[][] board;
-
+	void print(){
+		for(int i=0; i<4; i++){
+			for (int j=0; j<4; j++){
+				System.out.print(board[i][j]+"|");
+			}
+			System.out.println("");
+		}
+	}
 	//public byte chosen; chosen was a variable for the twist
 	Game(byte piece, int i, int j, Game previous){
 		//Generates a new game state based on the placement.
+		board=(byte[][])previous.board.clone();
+		board[i][j]=piece;
+		player=!previous.player;
+		pieces=new LinkedHashSet<Byte>();
+		pieces.addAll(previous.pieces);
+		pieces.remove(piece);
 	}
 
 	/**
@@ -49,6 +62,9 @@ class Game
 	{
 		pieces = new LinkedHashSet<Byte>();
 		board = new byte[4][4];
+		for(byte i=1; i<16; i++){
+			pieces.add(i);
+		}
 	}
 
 	/**
@@ -57,6 +73,7 @@ class Game
 	 */
 	int winner()
 	{
+		print();
 		if (done())
 		{
 			return result();
@@ -67,11 +84,12 @@ class Game
 		while (i.hasNext())
 		{
 			nextPiece = i.next();
+			System.out.println("Next piece = "+nextPiece);
 			//For every piece
 			//For every placement
 			for(int j=0; j<4; j++){
 				for(int k=0; k<4; k++){
-					if(j!=0&&k!=0&&board[j][k]==0){//Dont overwrite the top left.
+					if(!(j==0&&k==0)&&board[j][k]==0){//Dont overwrite the top left.
 						int winTemp=new Game(nextPiece,j,k,this).winner();
 						//winner=best of(winner, new Game(piece,placement,this).winner())
 					}
