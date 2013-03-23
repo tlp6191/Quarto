@@ -42,4 +42,19 @@ class Game{
 			//winner=best of(winner, new Game(piece,placement,this).winner())
 			
 	}
+	boolean done(){
+		//If out of pieces
+
+			//Return true
+		//If there is a winner
+			//Return true
+		//Return false
+		
+	}
+	byte result(){
+		//0 means tie.
+		//-1 means inconsistent gamestate (Could be useful later)
+		//1 means player 1 wins.
+		//2 means player 2 wins.
+	}
 }
