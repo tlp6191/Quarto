@@ -8,7 +8,18 @@ public class Quarto
 {
 	public static void main(String args[])
 	{
-		System.out.println(new Game().winner());
+		if(args.length>0){
+			byte pieces[]=new byte[16];
+			for(int i=0; i<16; i++){
+				pieces[i]=(byte)Integer.parseInt(args[i]);
+			} 
+			Game g=new Game(pieces);
+			g.print();
+			System.out.println(g.winner());
+		}
+		else{
+			System.out.println(new Game().winner());
+		}
 	}
 }
 
@@ -46,7 +57,7 @@ class Game
 	public Set<Byte> pieces;
 	public byte[][] board;
 	protected byte CalculatedResult=-2;
-	final boolean DEBUG=false;
+	final boolean DEBUG=true;
 	public Long toLong(){
 		long r=(long)0;
 		for(int i=0; i<4; i++){
@@ -60,8 +71,8 @@ class Game
 	}
 	void debugp(String s){if(DEBUG){System.out.println(s);}}
 	void print(){
-		debugp(""+toLong());
-		
+		debugp(""+Long.toHexString(toLong()));
+		System.out.println(player?2:1);	
 		for(int i=0; i<4; i++){
 			for (int j=0; j<4; j++){
 				System.out.print(Integer.toHexString(((Byte)board[i][j]).intValue())+"|");
@@ -69,6 +80,34 @@ class Game
 			System.out.println("");
 		}
 		System.out.flush();
+	}
+	public void transform(){//Transform this gamestate so that it abides by rules that guarantee no states that are equivilant are represented differently.
+		//TODO: This
+	}
+	Game(byte[] piecesArr){//Pass in 16 bytes. The first better be 0.
+		board=new byte[4][4];
+		int num0=0;
+		
+		if(piecesArr[0]!=0){
+			System.err.println("Incorrect game state constructor");
+		}
+		int k=0;
+		pieces=new LinkedHashSet<Byte>();
+		for(byte i=0; i<16; i++){
+			pieces.add(i);
+		}
+		for(int i=0; i<4; i++){
+			for(int j=0; j<4; j++){
+				if(piecesArr[k]==0){
+					num0++;//Used to determine the player number
+				}
+				pieces.remove(piecesArr[k]);
+				board[i][j]=piecesArr[k];
+				k++;
+			}
+		}
+		if((num0%2)==1){player=false;}
+		transform();
 	}
 	//public byte chosen; chosen was a variable for the twist
 	Game(byte piece, int i, int j, Game previous){
@@ -85,6 +124,7 @@ class Game
 		pieces.addAll(previous.pieces);
 		pieces.remove(piece);
 		//TODO: Transform
+		transform();
 	}
 
 	/**
@@ -99,6 +139,7 @@ class Game
 		for(byte i=1; i<16; i++){
 			pieces.add(i);
 		}
+		transform();
 	}
 
 	/**
@@ -107,7 +148,6 @@ class Game
 	 */
 	int winner()
 	{
-		//TODO: Look up the winner in the hashMaps.
 		if (done())
 		{
 			if(DEBUG){
@@ -116,6 +156,8 @@ class Game
 			}
 			return CalculatedResult;
 		}
+		//TODO: Look up the winner in the hashMaps.
+		//TODO: With some propability p, divide into threads.
 		int winner = 3;
 		byte nextPiece;
 		Iterator<Byte> i = pieces.iterator();
@@ -142,6 +184,7 @@ class Game
 							break nextMoves;
 						}
 						winner=Math.min(winner,winTemp);
+						//Take the tie if that's an option.
 					}
 				}
 			}
