@@ -3,27 +3,44 @@
  */
 
 import java.util.*;
+import java.util.concurrent.*;
 
 public class Quarto
 {
 	public static void main(String args[])
 	{
-		if(args.length>0){
-			byte pieces[]=new byte[16];
-			for(int i=0; i<16; i++){
-				pieces[i]=(byte)Integer.parseInt(args[i]);
-			} 
-			Game g=new Game(pieces);
-			g.print();
-			System.out.println(g.winner());
-		}
-		else{
-			System.out.println(new Game().winner());
+		// This is the only place we want to declare an executor so that
+		// we can control the number of threads in the entire system
+		ExecutorService e = Executors.newCachedThreadPool();
+		BlockingQueue<Integer> q = new ArrayBlockingQueue<Integer>(1);
+		if (args.length > 0)
+		{
+			byte pieces[] = new byte[16];
+			for (int i = 0; i < 16; i++)
+			{
+				pieces[i] = (byte) Integer.parseInt(args[i]);
+			}
+			Runnable worker = new Game(pieces, q, e);
+			e.execute(worker);
+			int winner = Utils.waitAndGetResult(q);
+			System.out.println(winner);
+			//Game g=new Game(pieces);
+			//g.print();
+			//System.out.println(g.winner());
+			e.shutdown();
+		} else
+		{
+			Runnable worker = new Game(q, e);
+			e.execute(worker);
+			int winner = Utils.waitAndGetResult(q);
+			System.out.println(winner);
+			//System.out.println(new Game().winner());
+			e.shutdown();
 		}
 	}
 }
 
-class Game
+class Game implements Runnable
 {
 	/*Possible draw state (For testing):
 		0|1|2|c 
@@ -36,6 +53,9 @@ class Game
 		0111|1101|0000|1011
 	*/
 	boolean player; //, set; set was a variable for the twist.
+	ExecutorService exec;
+	BlockingQueue<Integer> parentQueue;
+
 	/**
 	 * These are all the sets we are keeping for whether we have already solved a given state. 
 	 * We are mostly keeping these so we can write it out to the disk
@@ -49,78 +69,119 @@ class Game
 	 * We are doing this because I'm incredible scared of the amount of memory 
 	 * we need to store these things. 
 	*/
-	
+
+	public void run()
+	{
+		// TODO Review this
+		Utils.putAndWaitForSpace(this.parentQueue, this.winner());
+	}
+
 	/*Optomization, add later.
 	public static Set<Long> FourPiece=new HashSet<Long>();
 	public static Set<Long> EightPiece=new HashSet<Long>();
 	public static Set<Long> TwelvePiece=new HashSet<Long>();*/
 	public Set<Byte> pieces;
 	public byte[][] board;
-	protected byte CalculatedResult=-2;
-	final boolean DEBUG=true;
-	public Long toLong(){
-		long r=(long)0;
-		for(int i=0; i<4; i++){
-			for(int j=0; j<4; j++){
-				r+=board[i][j];
-				r=r<<4;
+	protected byte CalculatedResult = -2;
+	final boolean DEBUG = true;
+
+	public Long toLong()
+	{
+		long r = (long) 0;
+		for (int i = 0; i < 4; i++)
+		{
+			for (int j = 0; j < 4; j++)
+			{
+				r += board[i][j];
+				r = r << 4;
 			}
 		}
-		r=r>>4;
+		r = r >> 4;
 		return r;
 	}
-	void debugp(String s){if(DEBUG){System.out.println(s);}}
-	void print(){
-		debugp(""+Long.toHexString(toLong()));
-		System.out.println(player?2:1);	
-		for(int i=0; i<4; i++){
-			for (int j=0; j<4; j++){
-				System.out.print(Integer.toHexString(((Byte)board[i][j]).intValue())+"|");
+
+	void debugp(String s)
+	{
+		if (DEBUG)
+		{
+			System.out.println(s);
+		}
+	}
+
+	void print()
+	{
+		debugp("" + Long.toHexString(toLong()));
+		System.out.println(player ? 2 : 1);
+		for (int i = 0; i < 4; i++)
+		{
+			for (int j = 0; j < 4; j++)
+			{
+				System.out.print(Integer.toHexString(((Byte) board[i][j]).intValue()) + "|");
 			}
 			System.out.println("");
 		}
 		System.out.flush();
 	}
-	public void transform(){//Transform this gamestate so that it abides by rules that guarantee no states that are equivilant are represented differently.
+
+	public void transform()
+	{//Transform this gamestate so that it abides by rules that guarantee no states that are equivilant are represented differently.
 		//TODO: This
 	}
-	Game(byte[] piecesArr){//Pass in 16 bytes. The first better be 0.
-		board=new byte[4][4];
-		int num0=0;
-		
-		if(piecesArr[0]!=0){
+
+	Game(byte[] piecesArr, BlockingQueue<Integer> queue, ExecutorService e)
+	{//Pass in 16 bytes. The first better be 0.
+		this.parentQueue = queue;
+		this.exec = e;
+		board = new byte[4][4];
+		int num0 = 0;
+
+		if (piecesArr[0] != 0)
+		{
 			System.err.println("Incorrect game state constructor");
 		}
-		int k=0;
-		pieces=new LinkedHashSet<Byte>();
-		for(byte i=0; i<16; i++){
+		int k = 0;
+		pieces = new LinkedHashSet<Byte>();
+		for (byte i = 0; i < 16; i++)
+		{
 			pieces.add(i);
 		}
-		for(int i=0; i<4; i++){
-			for(int j=0; j<4; j++){
-				if(piecesArr[k]==0){
+		for (int i = 0; i < 4; i++)
+		{
+			for (int j = 0; j < 4; j++)
+			{
+				if (piecesArr[k] == 0)
+				{
 					num0++;//Used to determine the player number
 				}
 				pieces.remove(piecesArr[k]);
-				board[i][j]=piecesArr[k];
+				board[i][j] = piecesArr[k];
 				k++;
 			}
 		}
-		if((num0%2)==1){player=false;}
+		if ((num0 % 2) == 1)
+		{
+			player = false;
+		}
 		transform();
 	}
+
 	//public byte chosen; chosen was a variable for the twist
-	Game(byte piece, int i, int j, Game previous){
+	Game(byte piece, int i, int j, Game previous, BlockingQueue<Integer> queue, ExecutorService e)
+	{
+		this.parentQueue = queue;
+		this.exec = e;
 		//Generates a new game state based on the placement.
-		board=new byte[4][4];
-		for(int I=0; I<4; I++){
-			for(int J=0; J<4; J++){
-				board[I][J]=previous.board[I][J];
+		board = new byte[4][4];
+		for (int I = 0; I < 4; I++)
+		{
+			for (int J = 0; J < 4; J++)
+			{
+				board[I][J] = previous.board[I][J];
 			}
 		}
-		board[i][j]=piece;
-		player=!previous.player;
-		pieces=new LinkedHashSet<Byte>();
+		board[i][j] = piece;
+		player = !previous.player;
+		pieces = new LinkedHashSet<Byte>();
 		pieces.addAll(previous.pieces);
 		pieces.remove(piece);
 		//TODO: Transform
@@ -131,12 +192,15 @@ class Game
 	 * Instantiation of a new Game.
 	 * Creates the pieces and board.
 	 */
-	Game()
+	Game(BlockingQueue<Integer> queue, ExecutorService e)
 	{
-		player=false;//Start with P2, since the 0 piece was placed by P1
+		this.parentQueue = queue;
+		this.exec = e;
+		player = false;//Start with P2, since the 0 piece was placed by P1
 		pieces = new LinkedHashSet<Byte>();
 		board = new byte[4][4];
-		for(byte i=1; i<16; i++){
+		for (byte i = 1; i < 16; i++)
+		{
 			pieces.add(i);
 		}
 		transform();
@@ -150,9 +214,10 @@ class Game
 	{
 		if (done())
 		{
-			if(DEBUG){
+			if (DEBUG)
+			{
 				print();
-				System.out.println("Player = "+(player?2:1)+" Winner = "+CalculatedResult);
+				System.out.println("Player = " + (player ? 2 : 1) + " Winner = " + CalculatedResult);
 			}
 			return CalculatedResult;
 		}
@@ -161,38 +226,78 @@ class Game
 		int winner = 3;
 		byte nextPiece;
 		Iterator<Byte> i = pieces.iterator();
-		nextMoves:while (i.hasNext())
+		nextMoves: while (i.hasNext())
 		{
 			nextPiece = i.next();
-			debugp("Next piece = "+nextPiece);
+			debugp("Next piece = " + nextPiece);
 			//For every piece
 			//For every placement
-			for(int j=0; j<4; j++){
-				for(int k=0; k<4; k++){
-					if(!(j==0&&k==0)&&board[j][k]==0){//Dont overwrite the top left.
-						int winTemp=new Game(nextPiece,j,k,this).winner();
+			BlockingQueue<Integer> newQueue = new ArrayBlockingQueue<Integer>(16);
+			for (int j = 0; j < 4; j++)
+			{
+				for (int k = 0; k < 4; k++)
+				{
+					if (!(j == 0 && k == 0) && board[j][k] == 0)
+					{//Don't overwrite the top left.
+
+						if (Math.random() > 0.98)
+						{
+							Runnable worker = new Game(nextPiece, j, k, this, newQueue, this.exec);
+							this.exec.execute(worker);
+						} else
+						{
+							new Game(nextPiece, j, k, this, newQueue, this.exec).run();
+						}
+						/*
+						int winTemp = new Game(nextPiece, j, k, this).winner();
 						//winner=best of(winner, new Game(piece,placement,this).winner())
 						//TODO: Store result.
-						if(winTemp==1&&!player){
+						if (winTemp == 1 && !player)
+						{
 							debugp("Breaking for P1Win");
-							winner=1;
+							winner = 1;
 							break nextMoves;
 						}
-						if(winTemp==2&&player){
+						if (winTemp == 2 && player)
+						{
 							debugp("Breaking for P2Win");
-							winner=2;
+							winner = 2;
 							break nextMoves;
 						}
-						winner=Math.min(winner,winTemp);
+						winner = Math.min(winner, winTemp);
 						//Take the tie if that's an option.
+						 */
 					}
 				}
 			}
+
+			int winTemp = Utils.waitAndGetResult(newQueue);
+			//winner=best of(winner, new Game(piece,placement,this).winner())
+			//TODO: Store result.
+			if (winTemp == 1 && !player)
+			{
+				debugp("Breaking for P1Win");
+				winner = 1;
+				break nextMoves;
+			}
+			if (winTemp == 2 && player)
+			{
+				debugp("Breaking for P2Win");
+				winner = 2;
+				break nextMoves;
+			}
+			winner = Math.min(winner, winTemp);
 		}
-		if(winner==3){ System.err.println("Incorrect Winner Assigned");}
+		if (winner == 3)
+		{
+			System.err.println("Incorrect Winner Assigned");
+		}
 		//TODO: Store result.
-		if(DEBUG){print();}
-		debugp("Player = "+(player?2:1)+" Winner = "+winner);
+		if (DEBUG)
+		{
+			print();
+		}
+		debugp("Player = " + (player ? 2 : 1) + " Winner = " + winner);
 		return winner;
 	}
 
@@ -204,9 +309,11 @@ class Game
 	{
 		//If there is a winner
 		//Return true
-		CalculatedResult=result();
-		if(CalculatedResult>0) return true;
-		if(pieces.size()==0) return true;	
+		CalculatedResult = result();
+		if (CalculatedResult > 0)
+			return true;
+		if (pieces.size() == 0)
+			return true;
 		//If out of pieces
 		//Return true
 		//Return false
@@ -221,97 +328,138 @@ class Game
 	 */
 	byte result()
 	{
-		byte mask1=0x01;
-		byte mask2=0x02;
-		byte mask3=0x04;
-		byte mask4=0x08;
+		byte mask1 = 0x01;
+		byte mask2 = 0x02;
+		byte mask3 = 0x04;
+		byte mask4 = 0x08;
 		//For all rows
-		rows:for(int i=0; i<4; i++){
+		rows: for (int i = 0; i < 4; i++)
+		{
 			//Are all the pieces in this row placed
-			for(int j=0; j<4; j++){
-				if(board[i][j]==0&&!(j==0&&i==0)){
+			for (int j = 0; j < 4; j++)
+			{
+				if (board[i][j] == 0 && !(j == 0 && i == 0))
+				{
 					continue rows;
 				}
 			}
 			//For all attributes
 			//Are the cols all 0?
-			byte temp1=0;
-			byte temp2=0;
-			byte temp3=0;
-			byte temp4=0;
-			for(int j=0; j<4; j++){
-				temp1+=board[i][j]&mask1;
-				temp2+=board[i][j]&mask2;
-				temp3+=board[i][j]&mask3;
-				temp4+=board[i][j]&mask4;
+			byte temp1 = 0;
+			byte temp2 = 0;
+			byte temp3 = 0;
+			byte temp4 = 0;
+			for (int j = 0; j < 4; j++)
+			{
+				temp1 += board[i][j] & mask1;
+				temp2 += board[i][j] & mask2;
+				temp3 += board[i][j] & mask3;
+				temp4 += board[i][j] & mask4;
 			}
-			if(temp1==0||temp2==0||temp3==0||temp4==0){
-				debugp("Returning Winner-0-"+temp4+"|"+temp3+"|"+temp2+"|"+temp1);
-				return player?(byte)2:(byte)1;//The person who played the piece wins. If player==true, it was player 2. Otherwise it was player 1.
+			if (temp1 == 0 || temp2 == 0 || temp3 == 0 || temp4 == 0)
+			{
+				debugp("Returning Winner-0-" + temp4 + "|" + temp3 + "|" + temp2 + "|" + temp1);
+				return player ? (byte) 2 : (byte) 1;//The person who played the piece wins. If player==true, it was player 2. Otherwise it was player 1.
 			}
-			temp1=mask1;
-			temp2=mask2;
-			temp3=mask3;
-			temp4=mask4;
+			temp1 = mask1;
+			temp2 = mask2;
+			temp3 = mask3;
+			temp4 = mask4;
 			//Are the cols all 1?
-			for(int j=0; j<4; j++){
-				temp1=(byte)(temp1&board[i][j]);
-				temp2=(byte)(temp2&board[i][j]);
-				temp3=(byte)(temp3&board[i][j]);
-				temp4=(byte)(temp4&board[i][j]);
+			for (int j = 0; j < 4; j++)
+			{
+				temp1 = (byte) (temp1 & board[i][j]);
+				temp2 = (byte) (temp2 & board[i][j]);
+				temp3 = (byte) (temp3 & board[i][j]);
+				temp4 = (byte) (temp4 & board[i][j]);
 			}
-			if(temp1==0x01||temp2==0x02||temp3==0x04||temp4==0x08){
-				debugp("Returning Winner-1-"+temp4+"|"+temp3+"|"+temp2+"|"+temp1);
-				return player?(byte)2:(byte)1;//The person who played the piece wins. If player==true, it was player 2. Otherwise it was player 1.
+			if (temp1 == 0x01 || temp2 == 0x02 || temp3 == 0x04 || temp4 == 0x08)
+			{
+				debugp("Returning Winner-1-" + temp4 + "|" + temp3 + "|" + temp2 + "|" + temp1);
+				return player ? (byte) 2 : (byte) 1;//The person who played the piece wins. If player==true, it was player 2. Otherwise it was player 1.
 			}
 		}
 		//For all cols
-		cols:for(int i=0; i<4; i++){
+		cols: for (int i = 0; i < 4; i++)
+		{
 			//Are all the pieces in this row placed
-			for(int j=0; j<4; j++){
-				if(board[j][i]==0&&!(j==0&&i==0)){
+			for (int j = 0; j < 4; j++)
+			{
+				if (board[j][i] == 0 && !(j == 0 && i == 0))
+				{
 					continue cols;
 				}
 			}
 			//For all attributes
 			//Are the cols all 0?
-			byte temp1=0;
-			byte temp2=0;
-			byte temp3=0;
-			byte temp4=0;
-			for(int j=0; j<4; j++){
-				temp1+=board[j][i]&mask1;
-				temp2+=board[j][i]&mask2;
-				temp3+=board[j][i]&mask3;
-				temp4+=board[j][i]&mask4;
+			byte temp1 = 0;
+			byte temp2 = 0;
+			byte temp3 = 0;
+			byte temp4 = 0;
+			for (int j = 0; j < 4; j++)
+			{
+				temp1 += board[j][i] & mask1;
+				temp2 += board[j][i] & mask2;
+				temp3 += board[j][i] & mask3;
+				temp4 += board[j][i] & mask4;
 			}
-			if(temp1==0||temp2==0||temp3==0||temp4==0){
-				debugp("Returning ColWinner-0-"+temp4+"|"+temp3+"|"+temp2+"|"+temp1);
-				return player?(byte)2:(byte)1;//The person who played the piece wins. If player==true, it was player 2. Otherwise it was player 1.
+			if (temp1 == 0 || temp2 == 0 || temp3 == 0 || temp4 == 0)
+			{
+				debugp("Returning ColWinner-0-" + temp4 + "|" + temp3 + "|" + temp2 + "|" + temp1);
+				return player ? (byte) 2 : (byte) 1;//The person who played the piece wins. If player==true, it was player 2. Otherwise it was player 1.
 			}
-			temp1=mask1;
-			temp2=mask2;
-			temp3=mask3;
-			temp4=mask4;
+			temp1 = mask1;
+			temp2 = mask2;
+			temp3 = mask3;
+			temp4 = mask4;
 			//Are the cols all 1?
-			for(int j=0; j<4; j++){
-				temp1=(byte)(temp1&board[j][i]);
-				temp2=(byte)(temp2&board[j][i]);
-				temp3=(byte)(temp3&board[j][i]);
-				temp4=(byte)(temp4&board[j][i]);
+			for (int j = 0; j < 4; j++)
+			{
+				temp1 = (byte) (temp1 & board[j][i]);
+				temp2 = (byte) (temp2 & board[j][i]);
+				temp3 = (byte) (temp3 & board[j][i]);
+				temp4 = (byte) (temp4 & board[j][i]);
 			}
-			if(temp1==0x01||temp2==0x02||temp3==0x04||temp4==0x08){
-				debugp("Returning ColWinner-1-"+temp4+"|"+temp3+"|"+temp2+"|"+temp1);
-				return player?(byte)2:(byte)1;//The person who played the piece wins. If player==true, it was player 2. Otherwise it was player 1.
+			if (temp1 == 0x01 || temp2 == 0x02 || temp3 == 0x04 || temp4 == 0x08)
+			{
+				debugp("Returning ColWinner-1-" + temp4 + "|" + temp3 + "|" + temp2 + "|" + temp1);
+				return player ? (byte) 2 : (byte) 1;//The person who played the piece wins. If player==true, it was player 2. Otherwise it was player 1.
 			}
 		}
-	
-		
+
 		//Otherwise, return 0 if we are out of pieces.
-		if(pieces.size()==0){
+		if (pieces.size() == 0)
+		{
 			//System.err.println("Draw");
 			return 0;
 		}
 		return -1;
+	}
+}
+
+// Various wrappers for concurrency
+class Utils
+{
+	public static Integer waitAndGetResult(BlockingQueue<Integer> q)
+	{
+		try
+		{
+			return q.take();
+		} catch (InterruptedException e)
+		{
+			System.err.println("InterruptedException in Utils.waitAndGetResult: " + e.toString());
+		}
+		return -1;
+	}
+
+	public static void putAndWaitForSpace(BlockingQueue<Integer> q, Integer e)
+	{
+		try
+		{
+			q.put(e);
+		} catch (InterruptedException e1)
+		{
+			System.err.println("InterruptedException in Utils.putAndWaitForSpace: " + e.toString());
+		}
 	}
 }
