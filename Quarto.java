@@ -273,7 +273,7 @@ class Game implements Runnable
 
 			int winTemp = Utils.waitAndGetResult(newQueue);
 			int j = 1;
-			while ((winTemp == 3) && (j < 15))
+			while ((winTemp == 3) && (j < 16))
 			{
 				winTemp = Utils.waitAndGetResult(newQueue);
 				j++;
