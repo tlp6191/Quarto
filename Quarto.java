@@ -272,6 +272,12 @@ class Game implements Runnable
 			}
 
 			int winTemp = Utils.waitAndGetResult(newQueue);
+			int j = 1;
+			while ((winTemp == 3) && (j < 15))
+			{
+				winTemp = Utils.waitAndGetResult(newQueue);
+				j++;
+			}
 			//winner=best of(winner, new Game(piece,placement,this).winner())
 			//TODO: Store result.
 			if (winTemp == 1 && !player)
