@@ -4,6 +4,8 @@
 
 import java.util.*;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.*;;
+import java.io.*;
 
 public class Quarto
 {
@@ -12,6 +14,12 @@ public class Quarto
 		// This is the only place we want to declare an executor so that
 		// we can control the number of threads in the entire system
 		ExecutorService e = Executors.newCachedThreadPool();
+		try{
+			Game.out= new PrintWriter(new BufferedWriter(new FileWriter("TestNoThread.txt")));
+		}catch(IOException ex){
+			ex.printStackTrace();
+			System.exit(1);
+		}
 		BlockingQueue<Integer> q = new ArrayBlockingQueue<Integer>(1);
 		if (args.length > 0)
 		{
@@ -42,6 +50,15 @@ public class Quarto
 
 class Game implements Runnable
 {
+	public static  PrintWriter out ;
+	public static synchronized void write(){
+		try{
+			out.println(System.currentTimeMillis());
+			out.flush();
+			System.err.println(System.currentTimeMillis());
+		}catch(Exception e){e.printStackTrace();System.exit(1);}
+	}
+	public static AtomicInteger count=new AtomicInteger();
 	/*Possible draw state (For testing):
 		0|1|2|c 
 		3|4|5|8
@@ -83,7 +100,7 @@ class Game implements Runnable
 	public Set<Byte> pieces;
 	public byte[][] board;
 	protected byte CalculatedResult = -2;
-	final boolean DEBUG = true;
+	final boolean DEBUG = false;
 
 	public Long toLong()
 	{
@@ -219,6 +236,11 @@ class Game implements Runnable
 				print();
 				System.out.println("Player = " + (player ? 2 : 1) + " Winner = " + CalculatedResult);
 			}
+			int x=count.incrementAndGet();
+			if(x==1000000){
+				count.lazySet(0);
+				write();
+			}
 			return CalculatedResult;
 		}
 		//TODO: Look up the winner in the hashMaps.
@@ -226,21 +248,23 @@ class Game implements Runnable
 		int winner = 3;
 		byte nextPiece;
 		Iterator<Byte> i = pieces.iterator();
-		nextMoves: while (i.hasNext())
+		nextMoves:while (i.hasNext())
 		{
 			nextPiece = i.next();
 			debugp("Next piece = " + nextPiece);
 			//For every piece
 			//For every placement
 			BlockingQueue<Integer> newQueue = new ArrayBlockingQueue<Integer>(16);
+			int QueueCount=0;
 			for (int j = 0; j < 4; j++)
 			{
 				for (int k = 0; k < 4; k++)
 				{
 					if (!(j == 0 && k == 0) && board[j][k] == 0)
 					{//Don't overwrite the top left.
+						QueueCount++;
 
-						if (Math.random() > 0.98)
+						if (Math.random() > 1.1)
 						{
 							Runnable worker = new Game(nextPiece, j, k, this, newQueue, this.exec);
 							this.exec.execute(worker);
@@ -270,23 +294,28 @@ class Game implements Runnable
 					}
 				}
 			}
+			while(QueueCount!=0){//Check if any of those were winners.
+				QueueCount--;
+				int winTemp = Utils.waitAndGetResult(newQueue);
+				//winner=best of(winner, new Game(piece,placement,this).winner())
+				//TODO: Store result.
+				if (winTemp == 1 && !player)
+				{
+					debugp("Breaking for P1Win");
+					winner = 1;
+					break nextMoves;
+				}
+				if (winTemp == 2 && player)
+				{
+					debugp("Breaking for P2Win");
+					winner = 2;
+					break nextMoves;
+				}
+				winner = Math.min(winner, winTemp);
+				//Take the tie if that's an option.
+			 }
 
-			int winTemp = Utils.waitAndGetResult(newQueue);
-			//winner=best of(winner, new Game(piece,placement,this).winner())
-			//TODO: Store result.
-			if (winTemp == 1 && !player)
-			{
-				debugp("Breaking for P1Win");
-				winner = 1;
-				break nextMoves;
-			}
-			if (winTemp == 2 && player)
-			{
-				debugp("Breaking for P2Win");
-				winner = 2;
-				break nextMoves;
-			}
-			winner = Math.min(winner, winTemp);
+
 		}
 		if (winner == 3)
 		{
@@ -298,6 +327,11 @@ class Game implements Runnable
 			print();
 		}
 		debugp("Player = " + (player ? 2 : 1) + " Winner = " + winner);
+			int x=count.incrementAndGet();
+			if(x==1000000){
+				count.lazySet(0);
+				write();
+			}
 		return winner;
 	}
 
