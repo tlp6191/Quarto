@@ -53,9 +53,9 @@ class Game implements Runnable
 	public static  PrintWriter out ;
 	public static synchronized void write(){
 		try{
-			out.println(System.currentTimeMillis());
+			out.println(System.currentTimeMillis()+ " "+((ThreadPoolExecutor)(exec)).getActiveCount());
 			out.flush();
-			System.err.println(System.currentTimeMillis());
+			System.err.println(System.currentTimeMillis()+ " "+((ThreadPoolExecutor)(exec)).getActiveCount());
 		}catch(Exception e){e.printStackTrace();System.exit(1);}
 	}
 	public static AtomicInteger count=new AtomicInteger();
@@ -70,7 +70,7 @@ class Game implements Runnable
 		0111|1101|0000|1011
 	*/
 	boolean player; //, set; set was a variable for the twist.
-	ExecutorService exec;
+	static ExecutorService exec;
 	BlockingQueue<Integer> parentQueue;
 
 	/**
@@ -264,7 +264,7 @@ class Game implements Runnable
 					{//Don't overwrite the top left.
 						QueueCount++;
 
-						if (Math.random() > 1.1)
+						if (Math.random() > .9)
 						{
 							Runnable worker = new Game(nextPiece, j, k, this, newQueue, this.exec);
 							this.exec.execute(worker);
@@ -316,31 +316,6 @@ class Game implements Runnable
 			 }
 
 
-<<<<<<< HEAD
-=======
-			int winTemp = Utils.waitAndGetResult(newQueue);
-			int j = 1;
-			while ((winTemp == 3) && (j < 16))
-			{
-				winTemp = Utils.waitAndGetResult(newQueue);
-				j++;
-			}
-			//winner=best of(winner, new Game(piece,placement,this).winner())
-			//TODO: Store result.
-			if (winTemp == 1 && !player)
-			{
-				debugp("Breaking for P1Win");
-				winner = 1;
-				break nextMoves;
-			}
-			if (winTemp == 2 && player)
-			{
-				debugp("Breaking for P2Win");
-				winner = 2;
-				break nextMoves;
-			}
-			winner = Math.min(winner, winTemp);
->>>>>>> 6743141eb891b064ebaebc2b9e93605dc5115dfa
 		}
 		if (winner == 3)
 		{
