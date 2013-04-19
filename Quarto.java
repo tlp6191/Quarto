@@ -4,8 +4,6 @@
 
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.*;;
-import java.io.*;
 
 public class Quarto
 {
@@ -14,12 +12,6 @@ public class Quarto
 		// This is the only place we want to declare an executor so that
 		// we can control the number of threads in the entire system
 		ExecutorService e = Executors.newCachedThreadPool();
-		try{
-			Game.out= new PrintWriter(new BufferedWriter(new FileWriter("TestNoThread.txt")));
-		}catch(IOException ex){
-			ex.printStackTrace();
-			System.exit(1);
-		}
 		BlockingQueue<Integer> q = new ArrayBlockingQueue<Integer>(1);
 		if (args.length > 0)
 		{
@@ -50,15 +42,6 @@ public class Quarto
 
 class Game implements Runnable
 {
-	public static  PrintWriter out ;
-	public static synchronized void write(){
-		try{
-			out.println(System.currentTimeMillis()+ " "+((ThreadPoolExecutor)(exec)).getActiveCount());
-			out.flush();
-			System.err.println(System.currentTimeMillis()+ " "+((ThreadPoolExecutor)(exec)).getActiveCount());
-		}catch(Exception e){e.printStackTrace();System.exit(1);}
-	}
-	public static AtomicInteger count=new AtomicInteger();
 	/*Possible draw state (For testing):
 		0|1|2|c 
 		3|4|5|8
@@ -70,7 +53,7 @@ class Game implements Runnable
 		0111|1101|0000|1011
 	*/
 	boolean player; //, set; set was a variable for the twist.
-	static ExecutorService exec;
+	ExecutorService exec;
 	BlockingQueue<Integer> parentQueue;
 
 	/**
@@ -100,7 +83,7 @@ class Game implements Runnable
 	public Set<Byte> pieces;
 	public byte[][] board;
 	protected byte CalculatedResult = -2;
-	final boolean DEBUG = false;
+	final boolean DEBUG = true;
 
 	public Long toLong()
 	{
@@ -141,10 +124,119 @@ class Game implements Runnable
 	}
 
 	public void transform()
-	{//Transform this gamestate so that it abides by rules that guarantee no states that are equivilant are represented differently.
-		//TODO: This
+	{
+		sortByRow();
+		sortByCol();
+		
+		//sorting alone can't cover cases like this
+		//[0][ ][ ][ ]		[0][ ][ ][ ]
+		//[ ][1][ ][ ]		[ ][1][4][ ]
+		//[ ][4][6][ ]		[ ][ ][6][7]
+		//[ ][ ][7][9]		[ ][ ][ ][9]
+		if(needsReflecting()){
+			reflect();
+		}
+	}
+	
+	private void sortByRow(){
+		boolean finished  = false;
+		
+		while(!finished){
+			finished = true;
+			
+			for(int j = 1; j<board[0].length - 1;j++){
+				if(smallestElementInRow(j) > smallestElementInRow(j+1)){
+					swapRows(j, j+1);
+					finished = false;
+				}
+			}
+		}
+	}
+	
+	private void swapRows(int a, int b){
+		for(int x = 0; x<4;x++){
+			byte temp = board[a][x];
+			board[a][x] = board[b][x];
+			board[b][x] = temp;
+		}
+	}
+	
+	private byte smallestElementInRow(int row){
+		byte min = Byte.MAX_VALUE;
+		
+		for(int x=0; x<board[row].length;x++){
+			if(board[row][x] < min && board[row][x]!=0){
+				min = board[row][x];
+			}
+		}
+		
+		return min;
+	}
+	
+	private void sortByCol(){
+		boolean finished  = false;
+		
+		while(!finished){
+			finished = true;
+			
+			for(int j = 1; j<board.length - 1;j++){
+				if(smallestElementInCol(j) > smallestElementInCol(j+1)){
+					swapCols(j, j+1);
+					finished = false;
+				}
+			}
+		}
+	}
+	
+	private void swapCols(int a, int b){
+		for(int x = 0; x<4;x++){
+			byte temp = board[x][a];
+			board[x][a] = board[x][b];
+			board[x][b] = temp;
+		}
 	}
 
+	private byte smallestElementInCol(int col){
+		byte min = Byte.MAX_VALUE;
+		
+		for(int x=0; x<board.length;x++){
+			if(board[x][col] < min && board[x][col]!=0){
+				min = board[x][col];
+			}
+		}
+		
+		return min;
+	}
+	
+	
+	//for game states that are diagonally symmetric we need
+	//to decide on a common way of representing them
+	private boolean needsReflecting(){
+		for(int row = 1; row<4;row++){
+			for(int col = 0; col < row; col++){
+				if(board[row][col] < board[col][row]){
+					return true;
+				}
+			}
+		}
+		
+		return false;
+	}
+	
+	private void reflect(){
+		for(int row = 0; row<4;row++){
+			for(int col = row; col<4;col++){
+				byte temp = board[row][col];
+				board[row][col] = board[col][row];
+				board[col][row] = temp;
+			}
+		}
+	}
+	
+	public Game(){//used for testing
+		board = new byte[4][4];
+	}
+	
 	Game(byte[] piecesArr, BlockingQueue<Integer> queue, ExecutorService e)
 	{//Pass in 16 bytes. The first better be 0.
 		this.parentQueue = queue;
@@ -236,11 +328,6 @@ class Game implements Runnable
 				print();
 				System.out.println("Player = " + (player ? 2 : 1) + " Winner = " + CalculatedResult);
 			}
-			int x=count.incrementAndGet();
-			if(x==1000000){
-				count.lazySet(0);
-				write();
-			}
 			return CalculatedResult;
 		}
 		//TODO: Look up the winner in the hashMaps.
@@ -248,23 +335,21 @@ class Game implements Runnable
 		int winner = 3;
 		byte nextPiece;
 		Iterator<Byte> i = pieces.iterator();
-		nextMoves:while (i.hasNext())
+		nextMoves: while (i.hasNext())
 		{
 			nextPiece = i.next();
 			debugp("Next piece = " + nextPiece);
 			//For every piece
 			//For every placement
 			BlockingQueue<Integer> newQueue = new ArrayBlockingQueue<Integer>(16);
-			int QueueCount=0;
 			for (int j = 0; j < 4; j++)
 			{
 				for (int k = 0; k < 4; k++)
 				{
 					if (!(j == 0 && k == 0) && board[j][k] == 0)
 					{//Don't overwrite the top left.
-						QueueCount++;
 
-						if (Math.random() > .9)
+						if (Math.random() > 0.98)
 						{
 							Runnable worker = new Game(nextPiece, j, k, this, newQueue, this.exec);
 							this.exec.execute(worker);
@@ -294,28 +379,23 @@ class Game implements Runnable
 					}
 				}
 			}
-			while(QueueCount!=0){//Check if any of those were winners.
-				QueueCount--;
-				int winTemp = Utils.waitAndGetResult(newQueue);
-				//winner=best of(winner, new Game(piece,placement,this).winner())
-				//TODO: Store result.
-				if (winTemp == 1 && !player)
-				{
-					debugp("Breaking for P1Win");
-					winner = 1;
-					break nextMoves;
-				}
-				if (winTemp == 2 && player)
-				{
-					debugp("Breaking for P2Win");
-					winner = 2;
-					break nextMoves;
-				}
-				winner = Math.min(winner, winTemp);
-				//Take the tie if that's an option.
-			 }
 
-
+			int winTemp = Utils.waitAndGetResult(newQueue);
+			//winner=best of(winner, new Game(piece,placement,this).winner())
+			//TODO: Store result.
+			if (winTemp == 1 && !player)
+			{
+				debugp("Breaking for P1Win");
+				winner = 1;
+				break nextMoves;
+			}
+			if (winTemp == 2 && player)
+			{
+				debugp("Breaking for P2Win");
+				winner = 2;
+				break nextMoves;
+			}
+			winner = Math.min(winner, winTemp);
 		}
 		if (winner == 3)
 		{
@@ -327,11 +407,6 @@ class Game implements Runnable
 			print();
 		}
 		debugp("Player = " + (player ? 2 : 1) + " Winner = " + winner);
-			int x=count.incrementAndGet();
-			if(x==1000000){
-				count.lazySet(0);
-				write();
-			}
 		return winner;
 	}
 
