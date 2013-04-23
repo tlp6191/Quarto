@@ -11,22 +11,30 @@ public class Quarto
 {
 	public static void main(String args[])
 	{
+		/*
+		Testing game:
+		0|0|2|c 
+		0|4|0|0
+		9|0|0|6
+		7|d|0|b
+		*/
 		// This is the only place we want to declare an executor so that
 		// we can control the number of threads in the entire system
 		ExecutorService e = Executors.newCachedThreadPool();
 		try{
-			Game.out= new PrintWriter(new BufferedWriter(new FileWriter("TestNoThread.txt")));
+			Game.out= new PrintWriter(new BufferedWriter(new FileWriter(args[0])));
+			Game.threadP=Double.parseDouble(args[1]);
 		}catch(IOException ex){
 			ex.printStackTrace();
 			System.exit(1);
 		}
 		BlockingQueue<Integer> q = new ArrayBlockingQueue<Integer>(1);
-		if (args.length > 0)
+		if (args.length > 2)
 		{
 			byte pieces[] = new byte[16];
 			for (int i = 0; i < 16; i++)
 			{
-				pieces[i] = (byte) Integer.parseInt(args[i]);
+				pieces[i] = (byte) Integer.parseInt(args[i+2]);
 			}
 			Runnable worker = new Game(pieces, q, e);
 			e.execute(worker);
@@ -51,6 +59,7 @@ public class Quarto
 class Game implements Runnable
 {
 	public static  PrintWriter out ;
+	public static double threadP;
 	public static synchronized void write(){
 		try{
 			out.println(System.currentTimeMillis()+ " "+((ThreadPoolExecutor)(exec)).getActiveCount());
@@ -264,7 +273,7 @@ class Game implements Runnable
 					{//Don't overwrite the top left.
 						QueueCount++;
 
-						if (Math.random() > .9)
+						if (Math.random() < threadP)
 						{
 							Runnable worker = new Game(nextPiece, j, k, this, newQueue, this.exec);
 							this.exec.execute(worker);
