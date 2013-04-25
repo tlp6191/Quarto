@@ -36,14 +36,61 @@ public class Quarto
 			{
 				pieces[i] = (byte) Integer.parseInt(args[i+2]);
 			}
-			Runnable worker = new Game(pieces, q, e);
-			e.execute(worker);
+			if(args.length>=19&&args[18].equals("N")){
+				Set<Byte> constPieces=new LinkedHashSet<Byte>();
+				for(int i=0; i<16; i++){
+					constPieces.add((byte)i);
+				}
+				Runnable worker1 = new Game(pieces, q, e, constPieces);
+				e.execute(worker1);
+				int winner1 = Utils.waitAndGetResult(q);
+				System.out.println(winner1);
+				e.shutdown();
+				System.out.println("Complete");
+				
+			}
+			else{
+			Set<Byte> constPieces1=new LinkedHashSet<Byte>();
+			Set<Byte> constPieces2=new LinkedHashSet<Byte>();
+			Set<Byte> constPieces3=new LinkedHashSet<Byte>();
+			Set<Byte> constPieces4=new LinkedHashSet<Byte>();
+			constPieces1.add((byte)0);
+			constPieces1.add((byte)1);
+			constPieces1.add((byte)2);
+			constPieces1.add((byte)3);
+			Runnable worker1 = new Game(pieces, q, e, constPieces1);
+			e.execute(worker1);
+			//int winner1 = Utils.waitAndGetResult(q);
+			//System.out.println(winner1);
+			constPieces2.add((byte)4);
+			constPieces2.add((byte)5);
+			constPieces2.add((byte)6);
+			constPieces2.add((byte)7);
+			Runnable worker2 = new Game(pieces, q, e, constPieces2);
+			e.execute(worker2);
+			constPieces3.add((byte)8);
+			constPieces3.add((byte)9);
+			constPieces3.add((byte)10);
+			constPieces3.add((byte)11);
+			Runnable worker3 = new Game(pieces, q, e, constPieces3);
+			e.execute(worker3);
+			constPieces4.add((byte)12);
+			constPieces4.add((byte)13);
+			constPieces4.add((byte)14);
+			constPieces4.add((byte)15);
+			Runnable worker4 = new Game(pieces, q, e, constPieces4);
+			e.execute(worker4);
+			
+			for(int i=0; i<4; i++){
 			int winner = Utils.waitAndGetResult(q);
 			System.out.println(winner);
+			}
+			}
 			//Game g=new Game(pieces);
 			//g.print();
 			//System.out.println(g.winner());
 			e.shutdown();
+			System.out.println("Complete");
 		} else
 		{
 			Runnable worker = new Game(q, e);
@@ -101,7 +148,13 @@ class Game implements Runnable
 	public void run()
 	{
 		// TODO Review this
-		Utils.putAndWaitForSpace(this.parentQueue, this.winner());
+		if(!constrained){
+			Utils.putAndWaitForSpace(this.parentQueue, this.winner());
+		}
+		else{
+			Utils.putAndWaitForSpace(this.parentQueue, this.winConstrained(constrainedPieces));
+		}
+			
 	}
 
 	/*Optomization, add later.
@@ -109,6 +162,8 @@ class Game implements Runnable
 	public static Set<Long> EightPiece=new HashSet<Long>();
 	public static Set<Long> TwelvePiece=new HashSet<Long>();*/
 	public Set<Byte> pieces;
+	public Set<Byte> constrainedPieces;
+	public boolean constrained=false;
 	public byte[][] board;
 	protected byte CalculatedResult = -2;
 	final boolean DEBUG = false;
@@ -265,9 +320,11 @@ class Game implements Runnable
 		board = new byte[4][4];
 	}
 	
-	Game(byte[] piecesArr, BlockingQueue<Integer> queue, ExecutorService e)
+	Game(byte[] piecesArr, BlockingQueue<Integer> queue, ExecutorService e, Set<Byte> constraints)
 	{//Pass in 16 bytes. The first better be 0.
 		this.parentQueue = queue;
+		this.constrainedPieces=constraints;
+		this.constrained=true;
 		this.exec = e;
 		board = new byte[4][4];
 		int num0 = 0;
@@ -349,6 +406,10 @@ class Game implements Runnable
 	 */
 	int winner()
 	{
+		if (DEBUG)
+		{
+			print();
+		}
 		if(seenStates.containsKey(toLong())){
 			int x=count.incrementAndGet();
 			if(x==1000000){
@@ -442,10 +503,6 @@ class Game implements Runnable
 			System.err.println("Incorrect Winner Assigned");
 		}
 		//TODO: Store result.
-		if (DEBUG)
-		{
-			print();
-		}
 		debugp("Player = " + (player ? 2 : 1) + " Winner = " + winner);
 		//if(pieces.size()==12||pieces.size()==8||pieces.size()==4){
 			seenStates.put(toLong(), winner);
@@ -456,6 +513,133 @@ class Game implements Runnable
 		}
 		return winner;
 	}
+
+/**
+	 * Decides the winner, with the constraint that the first piece chosen
+	 *.must be from the list of pieces passed in.
+	 * @return The ID of the winner, or 0 for tie.
+	 */
+	int winConstrained(Set possiblePieces)
+	{
+		if (DEBUG)
+		{
+			print();
+		}
+		debugp("Win with constraint"); 
+		if(seenStates.containsKey(toLong())){
+			int x=count.incrementAndGet();
+			if(x==1000000){
+				write();
+			}
+			return seenStates.get(toLong());
+		}
+		if (done())
+		{
+			if (DEBUG)
+			{
+				print();
+				System.out.println("Player = " + (player ? 2 : 1) + " Winner = " + CalculatedResult);
+			}
+			int x=count.incrementAndGet();
+			if(x==1000000){
+				write();
+			}
+			return CalculatedResult;
+		}
+		//TODO: Look up the winner in the hashMaps.
+		//TODO: With some propability p, divide into threads.
+		int winner = 3;
+		byte nextPiece; 
+		Set<Byte> piecesToChoose = new LinkedHashSet<Byte>();
+		piecesToChoose.addAll(pieces);
+		piecesToChoose.retainAll(possiblePieces);
+		System.out.println("Pieces to choose from: "+piecesToChoose.size());
+		Iterator<Byte> i = piecesToChoose.iterator();
+		while(i.hasNext()){
+			System.out.print(i.next());
+		}System.out.println("");
+		
+		i = piecesToChoose.iterator();
+		nextMoves: while (i.hasNext())
+		{
+			nextPiece = i.next();
+			debugp("Next piece = " + nextPiece);
+			//For every piece
+			//For every placement
+			BlockingQueue<Integer> newQueue = new ArrayBlockingQueue<Integer>(16);
+			for (int j = 0; j < 4; j++)
+			{
+				for (int k = 0; k < 4; k++)
+				{
+					if (!(j == 0 && k == 0) && board[j][k] == 0)
+					{//Don't overwrite the top left.
+					//out.println(System.currentTimeMillis()+ " "+((ThreadPoolExecutor)(exec)).getActiveCount());
+
+						if (Math.random() < threadP && ((ThreadPoolExecutor)(exec)).getQueue().size()<8)
+						{
+							Runnable worker = new Game(nextPiece, j, k, this, newQueue, this.exec);
+							this.exec.execute(worker);
+						} else
+						{
+							new Game(nextPiece, j, k, this, newQueue, this.exec).run();
+						}
+						/*
+						int winTemp = new Game(nextPiece, j, k, this).winner();
+						//winner=best of(winner, new Game(piece,placement,this).winner())
+						//TODO: Store result.
+						if (winTemp == 1 && !player)
+						{
+							debugp("Breaking for P1Win");
+							winner = 1;
+							break nextMoves;
+						}
+						if (winTemp == 2 && player)
+						{
+							debugp("Breaking for P2Win");
+							winner = 2;
+							break nextMoves;
+						}
+						winner = Math.min(winner, winTemp);
+						//Take the tie if that's an option.
+						 */
+					}
+				}
+			}
+
+			int winTemp = Utils.waitAndGetResult(newQueue);
+			//winner=best of(winner, new Game(piece,placement,this).winner())
+			//TODO: Store result.
+			if (winTemp == 1 && !player)
+			{
+				debugp("Breaking for P1Win");
+				winner = 1;
+				break nextMoves;
+			}
+			if (winTemp == 2 && player)
+			{
+				debugp("Breaking for P2Win");
+				winner = 2;
+				break nextMoves;
+			}
+			winner = Math.min(winner, winTemp);
+		}
+		if (winner == 3)
+		{
+			System.err.println("Incorrect Winner Assigned");
+		}
+		//TODO: Store result.
+		debugp("Player = " + (player ? 2 : 1) + " Winner = " + winner);
+		//if(pieces.size()==12||pieces.size()==8||pieces.size()==4){
+			seenStates.put(toLong(), winner);
+		//}
+		int x=count.incrementAndGet();
+		if(x==1000000){
+			write();
+		}
+		return winner;
+	}
+
+
 
 	/**
 	 * Figures out if the algorithm is done.
